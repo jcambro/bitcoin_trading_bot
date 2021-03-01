@@ -16,6 +16,19 @@ USING BINANCE AND API
 
 import os
 from binance.client import Client
+from binance.websockets import BinanceSocketManager
+from twisted.internet import reactor
+
+
+def btc_trade_history(msg):
+    ''' define how to process incoming WebSocket messages '''
+    if msg['e'] != 'error':
+        print(msg['c'])
+        btc_price['close'] = msg['c']   # current days closing price
+        btc_price['bid'] = msg['b']     # best bid price
+        btc_price['ask'] = msg['a']     # best ask price
+    else:
+        btc_price['error'] = True
 
 
 def main():
@@ -25,9 +38,23 @@ def main():
 
     # Intiate the client
     client = Client(api_key, api_secret)
+    btc_price = {'error': False}
 
     # Manually change api endpoint for testing
     client.API_URL = 'https://testnet.binance.vision/api'
+
+    # start a websocket that will automatically call our btc_trade_history
+    # method and update our btc_price dictionary with up-to-date information
+    bsm = BinanceSocketManager(client)
+    conn_key = bsm.start_symbol_ticker_socket('BTCUSDT', btc_trade_history)
+    bsm.start()
+
+    # see bitcoin balance
+    print(client.get_asset_balance(asset='BTC'))
+
+    # stop & terminate websocket
+    bsm.stop_socket(conn_key)
+    reactor.stop()
 
 
 if __name__ == '__main__':
